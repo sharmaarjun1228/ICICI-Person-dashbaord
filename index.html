@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1D4ED8" />
-  <title>FinPulse — Personal Bank Analytics</title>
+  <title>MyICICI — Personal Bank Analytics</title>
 
   <!-- Inter Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -46,6 +46,8 @@
 
   <!-- SheetJS for .xls, .xlsx, .csv parsing -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <!-- XlsxPopulate for client-side decryption of password-protected .xlsx files -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-populate@1.21.0/browser/xlsx-populate.min.js"></script>
 
   <!-- Chart.js for interactive responsive visualizations -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
@@ -91,7 +93,7 @@
         </div>
         <div class="min-w-0">
           <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-extrabold tracking-tight truncate text-[#111827] dark:text-white">FinPulse</h1>
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight truncate text-[#111827] dark:text-white">MyICICI Dashboard</h1>
             <span id="statusBadge" class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               On-Device
@@ -181,9 +183,24 @@
           </svg>
         </div>
         <p class="text-sm sm:text-base font-semibold text-[#111827] dark:text-white">Tap to select statement or drag &amp; drop</p>
-        <p class="text-xs text-[#6B7280] dark:text-[#9CA3AF] mt-1">100% Client-Side • Zero server uploads • Saved locally</p>
+        <p class="text-xs text-[#6B7280] dark:text-[#9CA3AF] mt-1">100% Client-Side • Password-protected Excel supported • Saved locally</p>
         <input id="fileInput" type="file" accept=".xls,.xlsx,.csv" multiple class="hidden" />
       </label>
+
+      <!-- Import Mode Selector (Helps prevent overlap duplicates when uploading a full FY statement) -->
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-lightbg dark:bg-slate-900 border border-[#E5E7EB] dark:border-darkborder text-xs">
+        <span class="font-semibold text-[#6B7280] dark:text-[#9CA3AF]">Import Mode:</span>
+        <div class="flex items-center gap-4">
+          <label class="inline-flex items-center gap-1.5 cursor-pointer font-semibold text-[#111827] dark:text-slate-200">
+            <input type="radio" name="importMode" value="merge" checked class="accent-brand-700" />
+            <span>Merge &amp; Deduplicate</span>
+          </label>
+          <label class="inline-flex items-center gap-1.5 cursor-pointer font-semibold text-[#111827] dark:text-slate-200">
+            <input type="radio" name="importMode" value="replace" class="accent-brand-700" />
+            <span>Replace Existing Data</span>
+          </label>
+        </div>
+      </div>
 
       <!-- Quick Actions Strip -->
       <div class="mt-4 pt-4 border-t border-[#E5E7EB] dark:border-darkborder flex flex-wrap items-center justify-between gap-2.5">
@@ -642,6 +659,72 @@
     <span id="toastMsg"></span>
   </div>
 
+  <!-- ==================== EXCEL FILE PASSWORD MODAL (Shown ONLY if uploaded Excel is encrypted) ==================== -->
+  <div id="filePasswordModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/65 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-darksurface w-full max-w-md rounded-3xl border border-[#E5E7EB] dark:border-darkborder shadow-elev-3 p-6 sm:p-7 space-y-5">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-11 h-11 rounded-2xl bg-brand-50 dark:bg-brand-500/15 text-brand-700 dark:text-brand-400 flex items-center justify-center shrink-0">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.1" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-base sm:text-lg font-extrabold text-[#111827] dark:text-white">Password-Protected Excel</h3>
+            <p id="filePasswordName" class="text-xs text-[#6B7280] dark:text-[#9CA3AF] truncate"></p>
+          </div>
+        </div>
+        <button id="cancelFilePwdBtn" type="button" aria-label="Close Password Prompt"
+          class="w-8 h-8 rounded-lg text-[#6B7280] hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- ICICI Password Format Hint -->
+      <div class="rounded-2xl bg-brand-50/70 dark:bg-brand-500/10 border border-brand-100 dark:border-brand-800/60 p-3.5 text-xs space-y-1.5">
+        <p class="font-bold text-brand-800 dark:text-brand-300">ICICI Statement Password Hint:</p>
+        <p class="text-[#6B7280] dark:text-[#9CA3AF]">
+          Usually first <strong>4 letters of your Name</strong> + <strong>DOB</strong> in <code class="font-mono font-bold text-brand-700 dark:text-brand-300">DDMM</code> or <code class="font-mono font-bold text-brand-700 dark:text-brand-300">DDMMYY</code> (e.g. <code class="font-mono font-bold">ARJU2812</code> or <code class="font-mono font-bold">ARJU281298</code>).
+        </p>
+      </div>
+
+      <form id="filePasswordForm" class="space-y-4" novalidate>
+        <div class="space-y-1.5">
+          <label for="filePasswordInput" class="block text-xs font-bold uppercase tracking-wider text-[#6B7280] dark:text-[#9CA3AF]">
+            Enter Excel File Password
+          </label>
+          <div class="relative">
+            <input id="filePasswordInput" type="password" autocomplete="off" spellcheck="false"
+              placeholder="Enter file password..."
+              class="sg-input w-full min-h-[46px] pl-4 pr-12 py-2.5 rounded-xl bg-lightbg dark:bg-slate-900 border border-[#E5E7EB] dark:border-darkborder text-sm font-bold tracking-wider text-[#111827] dark:text-white placeholder:tracking-normal placeholder:font-medium placeholder-[#9CA3AF]" />
+            <button id="toggleFilePwdBtn" type="button" aria-label="Show or Hide Password"
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg text-[#6B7280] hover:bg-slate-200/70 dark:hover:bg-slate-800 flex items-center justify-center transition">
+              <svg id="fileEyeOpenIcon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              <svg id="fileEyeClosedIcon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+              </svg>
+            </button>
+          </div>
+          <p id="filePasswordError" class="hidden text-xs font-semibold text-red-600 dark:text-red-400 pt-1 leading-relaxed"></p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5">
+          <button id="cancelFilePwdBtn2" type="button"
+            class="min-h-[42px] px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-[#111827] dark:text-slate-200 bg-lightbg dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+            Cancel
+          </button>
+          <button id="unlockFilePwdBtn" type="submit"
+            class="min-h-[42px] px-5 py-2 rounded-xl bg-brand-700 hover:bg-brand-600 active:bg-brand-800 dark:bg-brand-500 dark:hover:bg-brand-600 text-white text-xs sm:text-sm font-bold shadow-elev-2 transition">
+            Unlock &amp; Import
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- ==================== APPLICATION LOGIC ==================== -->
   <script>
     (() => {
@@ -656,55 +739,57 @@
         THEME: 'finpulse_theme_v2'
       };
 
-      // -------------------- CATEGORIES & COLORS --------------------
+      // -------------------- CATEGORY & BUDGET CONSTANTS --------------------
       const ALL_CATEGORIES = [
         'Income / Salary',
-        'Food & Groceries',
-        'Fuel & Transport',
+        'Other Deposit / Refund',
         'UPI Lite Top-up',
         'Cash Withdrawal',
-        'Subscriptions & Bills',
-        'Rent & Housing',
-        'Shopping & Retail',
-        'Vehicle Maintenance',
         'Self Transfer',
-        'Other Deposit / Refund',
+        'Food & Groceries',
+        'Fuel & Transport',
+        'Subscriptions & Bills',
+        'Vehicle Maintenance',
+        'Rent & Housing',
+        'Shopping & Personal',
+        'Health & Medical',
+        'UPI Spend / Other'
+      ];
+
+      const BUDGET_CATEGORIES = [
+        'Food & Groceries',
+        'UPI Lite Top-up',
+        'Cash Withdrawal',
+        'Fuel & Transport',
+        'Subscriptions & Bills',
         'UPI Spend / Other'
       ];
 
       const CATEGORY_COLORS = {
         'Income / Salary': '#16A34A',
-        'Food & Groceries': '#EC4899',
-        'Fuel & Transport': '#EF4444',
+        'Other Deposit / Refund': '#10B981',
         'UPI Lite Top-up': '#2563EB',
-        'Cash Withdrawal': '#D97706',
+        'Cash Withdrawal': '#F59E0B',
+        'Self Transfer': '#6366F1',
+        'Food & Groceries': '#EC4899',
+        'Fuel & Transport': '#0EA5E9',
         'Subscriptions & Bills': '#8B5CF6',
-        'Rent & Housing': '#0891B2',
-        'Shopping & Retail': '#F97316',
-        'Vehicle Maintenance': '#EA580C',
-        'Self Transfer': '#64748B',
-        'Other Deposit / Refund': '#14B8A6',
-        'UPI Spend / Other': '#3B82F6'
+        'Vehicle Maintenance': '#F97316',
+        'Rent & Housing': '#14B8A6',
+        'Shopping & Personal': '#E11D48',
+        'Health & Medical': '#06B6D4',
+        'UPI Spend / Other': '#64748B'
       };
 
-      const BUDGET_CATEGORIES = [
-        'Food & Groceries',
-        'Fuel & Transport',
-        'UPI Lite Top-up',
-        'Cash Withdrawal',
-        'Subscriptions & Bills',
-        'UPI Spend / Other'
-      ];
-
       const DEFAULT_BUDGETS = {
-        overall: 35000,
+        overall: 30000,
         categories: {
           'Food & Groceries': 5000,
-          'Fuel & Transport': 2500,
-          'UPI Lite Top-up': 9000,
-          'Cash Withdrawal': 12000,
-          'Subscriptions & Bills': 1500,
-          'UPI Spend / Other': 8000
+          'UPI Lite Top-up': 8000,
+          'Cash Withdrawal': 10000,
+          'Fuel & Transport': 3000,
+          'Subscriptions & Bills': 2000,
+          'UPI Spend / Other': 5000
         }
       };
 
@@ -772,6 +857,8 @@
       // -------------------- APPLICATION STATE --------------------
       const LEDGER_PAGE_SIZE = 50;
       let state = {
+        isSampleData: false,
+        pendingEncryptedQueue: [], // Queue of { file, buf } awaiting password
         transactions: [],
         meta: '',
         budgets: structuredClone(DEFAULT_BUDGETS),
@@ -864,22 +951,104 @@
         confirmClearBtn: $('confirmClearBtn'),
         toast: $('toast'),
         toastIcon: $('toastIcon'),
-        toastMsg: $('toastMsg')
+        toastMsg: $('toastMsg'),
+        filePasswordModal: $('filePasswordModal'),
+        filePasswordForm: $('filePasswordForm'),
+        filePasswordInput: $('filePasswordInput'),
+        filePasswordName: $('filePasswordName'),
+        toggleFilePwdBtn: $('toggleFilePwdBtn'),
+        fileEyeOpenIcon: $('fileEyeOpenIcon'),
+        fileEyeClosedIcon: $('fileEyeClosedIcon'),
+        filePasswordError: $('filePasswordError'),
+        cancelFilePwdBtn: $('cancelFilePwdBtn'),
+        cancelFilePwdBtn2: $('cancelFilePwdBtn2'),
+        unlockFilePwdBtn: $('unlockFilePwdBtn')
       };
 
-      // -------------------- FORMATTERS & HELPERS --------------------
-      const inrFull = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
-      const inrDec = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      // -------------------- EXCEL PASSWORD PROMPT HANDLERS --------------------
+      function openNextEncryptedFilePrompt() {
+        if (!state.pendingEncryptedQueue.length) {
+          closeFilePasswordModal();
+          return;
+        }
+        const current = state.pendingEncryptedQueue[0];
+        dom.filePasswordName.textContent = current.file.name;
+        dom.filePasswordInput.value = '';
+        dom.filePasswordInput.type = 'password';
+        dom.fileEyeOpenIcon.classList.remove('hidden');
+        dom.fileEyeClosedIcon.classList.add('hidden');
+        dom.filePasswordError.classList.add('hidden');
+        dom.filePasswordModal.classList.remove('hidden');
+        dom.filePasswordModal.classList.add('flex');
+        setTimeout(() => dom.filePasswordInput.focus(), 60);
+      }
 
-      const fmtINR = v => inrFull.format(Math.round(Number(v) || 0));
-      const fmtINRDec = v => inrDec.format(Number(v) || 0);
+      function closeFilePasswordModal() {
+        dom.filePasswordModal.classList.add('hidden');
+        dom.filePasswordModal.classList.remove('flex');
+        dom.filePasswordError.classList.add('hidden');
+      }
 
+      async function tryDecryptWorkbook(file, buf, password) {
+        // 1. Try XlsxPopulate for password-protected OOXML (.xlsx) files
+        if (typeof XlsxPopulate !== 'undefined') {
+          try {
+            const unlocked = await XlsxPopulate.fromDataAsync(buf, { password });
+            const decryptedBuf = await unlocked.outputAsync('arraybuffer');
+            return XLSX.read(decryptedBuf, { type: 'array', cellDates: false });
+          } catch (e) {
+            const msg = String(e?.message || e);
+            if (/password|incorrect|invalid/i.test(msg)) {
+              throw new Error('WRONG_PASSWORD');
+            }
+            // Otherwise fall through to SheetJS (e.g. for legacy .xls files)
+          }
+        }
+
+        // 2. Try SheetJS native password option (supports XOR-obfuscated .xls)
+        try {
+          return XLSX.read(buf, { type: 'array', cellDates: false, password });
+        } catch (e) {
+          const msg = String(e?.message || e);
+          if (/password|encrypt|CFB/i.test(msg)) {
+            if (file.name.toLowerCase().endsWith('.xls')) {
+              throw new Error('LEGACY_XLS_ENCRYPTED');
+            }
+            throw new Error('WRONG_PASSWORD');
+          }
+          throw e;
+        }
+      }
+
+      // -------------------- FORMATTING & ESCAPE HELPERS --------------------
       function esc(str) {
         return String(str ?? '')
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;');
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      const inrFormatter = new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0
+      });
+
+      const inrDecFormatter = new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+
+      function fmtINR(val) {
+        return inrFormatter.format(Number(val) || 0);
+      }
+
+      function fmtINRDec(val) {
+        return inrDecFormatter.format(Number(val) || 0);
       }
 
       function fmtDate(iso) {
@@ -1056,6 +1225,73 @@
         };
       }
 
+      // Strong canonical deduplication helpers to prevent 2x duplicate records
+      function normalizeRefForKey(refNo) {
+        return String(refNo || '').replace(/[^a-zA-Z0-9]/g, '').replace(/^0+/, '').toUpperCase();
+      }
+
+      function normalizePayeeForKey(payee) {
+        return String(payee || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 14);
+      }
+
+      function buildTxnKey(t) {
+        const normRef = normalizeRefForKey(t.refNo);
+        const normPayee = normalizePayeeForKey(t.payee);
+        return `${t.date}|${Number(t.withdrawal).toFixed(2)}|${Number(t.deposit).toFixed(2)}|${Number(t.balance).toFixed(2)}|${normRef || normPayee}`;
+      }
+
+      function isSameTransaction(a, b) {
+        if (a.date !== b.date) return false;
+        if (Number(a.withdrawal).toFixed(2) !== Number(b.withdrawal).toFixed(2)) return false;
+        if (Number(a.deposit).toFixed(2) !== Number(b.deposit).toFixed(2)) return false;
+
+        const refA = normalizeRefForKey(a.refNo);
+        const refB = normalizeRefForKey(b.refNo);
+        // If both have a real reference number (6+ chars) and same date & amount -> definitely same transaction
+        if (refA.length >= 6 && refB.length >= 6 && refA === refB) return true;
+
+        // Otherwise require matching running balance as well
+        if (Number(a.balance).toFixed(2) !== Number(b.balance).toFixed(2)) return false;
+
+        const payA = normalizePayeeForKey(a.payee);
+        const payB = normalizePayeeForKey(b.payee);
+        if (payA && payB && (payA === payB || payA.includes(payB) || payB.includes(payA))) return true;
+
+        // Same exact date, amounts, running balance, and payment mode -> duplicate row
+        if (String(a.mode || '').toUpperCase() === String(b.mode || '').toUpperCase()) return true;
+        return false;
+      }
+
+      function deduplicateTransactions(list) {
+        const unique = [];
+        const byAmountSig = new Map();
+
+        for (const item of list) {
+          item.key = buildTxnKey(item);
+          // Bucket by date + withdrawal + deposit so even balance-rounding differences with same RefNo are caught
+          const sig = `${item.date}|${Number(item.withdrawal).toFixed(2)}|${Number(item.deposit).toFixed(2)}`;
+          const bucket = byAmountSig.get(sig);
+
+          if (!bucket) {
+            byAmountSig.set(sig, [item]);
+            unique.push(item);
+          } else {
+            const matchIdx = bucket.findIndex(existing => isSameTransaction(existing, item));
+            if (matchIdx === -1) {
+              bucket.push(item);
+              unique.push(item);
+            } else {
+              // Keep whichever copy has richer remarks (e.g. merged continuation text)
+              const existing = bucket[matchIdx];
+              if (String(item.remarks || '').length > String(existing.remarks || '').length && !existing.manualCategory) {
+                Object.assign(existing, item);
+              }
+            }
+          }
+        }
+        return unique;
+      }
+
       function parseWorkbook(wb) {
         if (!wb.SheetNames || !wb.SheetNames.length) {
           throw new Error('No sheet found in this file.');
@@ -1066,8 +1302,12 @@
         let mergedContinuations = 0;
         let autoSeq = 1;
 
-        // Iterate through ALL sheets in the workbook
-        for (const sheetName of wb.SheetNames) {
+        // Iterate through visible sheets only (skips hidden duplicate/print sheets)
+        for (let sIdx = 0; sIdx < wb.SheetNames.length; sIdx++) {
+          const sheetMeta = wb.Workbook?.Sheets?.[sIdx];
+          if (sheetMeta && sheetMeta.Hidden && sheetMeta.Hidden !== 0) continue;
+
+          const sheetName = wb.SheetNames[sIdx];
           const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '' });
           if (!rows || !rows.length) continue;
 
@@ -1165,7 +1405,7 @@
                 prev.refNo = reParsed.refNo;
               }
               prev.category = classifyTransaction(prev.mode, prev.payee, prev.remarks, prev.bank, prev.deposit);
-              prev.key = `${prev.date}|${prev.refNo || prev.remarks.slice(0, 28)}|${prev.withdrawal.toFixed(2)}|${prev.deposit.toFixed(2)}|${prev.balance.toFixed(2)}`;
+              prev.key = buildTxnKey(prev);
               mergedContinuations++;
               continue;
             }
@@ -1200,10 +1440,8 @@
             }
 
             const category = classifyTransaction(mode, payee, remarks, bank, deposit);
-            const key = `${dateIso}|${refNo || remarks.slice(0, 28)}|${withdrawal.toFixed(2)}|${deposit.toFixed(2)}|${balance.toFixed(2)}`;
-
-            allTxns.push({
-              key,
+            const txnObj = {
+              key: '',
               sNo,
               date: dateIso,
               month: dateIso.slice(0, 7),
@@ -1217,7 +1455,9 @@
               balance,
               category,
               manualCategory: false
-            });
+            };
+            txnObj.key = buildTxnKey(txnObj);
+            allTxns.push(txnObj);
           }
         }
 
@@ -1225,7 +1465,8 @@
           throw new Error('Could not detect bank statement transactions (expected Date, Remarks, and Withdrawal/Deposit/Balance columns).');
         }
 
-        return { txns: allTxns, meta, mergedContinuations };
+        const dedupedTxns = deduplicateTransactions(allTxns);
+        return { txns: dedupedTxns, rawCount: allTxns.length, meta, mergedContinuations };
       }
 
       // -------------------- PERSISTENCE & DEDUPLICATION --------------------
@@ -1253,31 +1494,33 @@
           const r = localStorage.getItem(KEYS.RULES);
           if (r) state.customRules = JSON.parse(r) || [];
           const t = localStorage.getItem(KEYS.TXNS);
-          if (t) state.transactions = JSON.parse(t) || [];
+          if (t) {
+            const loaded = JSON.parse(t) || [];
+            const cleaned = deduplicateTransactions(loaded);
+            state.transactions = cleaned;
+            // Persist cleaned list if legacy duplicates were removed
+            if (cleaned.length !== loaded.length) saveTransactions();
+          }
           const m = localStorage.getItem(KEYS.META);
-          if (m) state.meta = m;
+          if (m) {
+            state.meta = m;
+            state.isSampleData = m.startsWith('Sample ICICI Statement');
+          }
         } catch (err) {
           console.warn('Storage load error:', err);
         }
       }
 
       function mergeTransactions(incoming, metaText) {
-        const map = new Map();
-        state.transactions.forEach(t => map.set(t.key, t));
+        const beforeCount = state.transactions.length;
+        const combined = deduplicateTransactions([...state.transactions, ...incoming]);
 
-        let added = 0;
-        incoming.forEach(t => {
-          if (!map.has(t.key)) {
-            map.set(t.key, t);
-            added++;
-          }
-        });
-
-        state.transactions = Array.from(map.values()).sort((a, b) => {
+        state.transactions = combined.sort((a, b) => {
           if (a.date !== b.date) return a.date.localeCompare(b.date);
           return a.sNo - b.sNo;
         });
 
+        const added = Math.max(0, state.transactions.length - beforeCount);
         if (metaText) state.meta = metaText;
         saveTransactions();
         return added;
@@ -1341,6 +1584,7 @@
         });
 
         state.transactions = [];
+        state.isSampleData = true;
         mergeTransactions(txns, 'Sample ICICI Statement • Oct–Nov 2026');
         dom.uploadPanel.classList.add('hidden');
         syncUIAndRender();
@@ -1348,9 +1592,31 @@
       }
 
       // -------------------- FILE UPLOAD --------------------
+      function getSelectedImportMode() {
+        const checked = document.querySelector('input[name="importMode"]:checked');
+        return checked ? checked.value : 'merge';
+      }
+
+      function finalizeParsedWorkbook(wb, fileName) {
+        const { txns, rawCount, meta, mergedContinuations } = parseWorkbook(wb);
+        if (!txns.length) {
+          showToast(`No valid transactions found in ${fileName}`, 'error');
+          return { parsed: 0, added: 0, merged: 0 };
+        }
+        const added = mergeTransactions(txns, meta || fileName);
+        return { parsed: rawCount || txns.length, added, merged: mergedContinuations || 0 };
+      }
+
       async function handleFileUpload(fileList) {
         const files = Array.from(fileList || []);
         if (!files.length) return;
+
+        const importMode = getSelectedImportMode();
+        // Clear existing data if Replace mode is selected OR if Sample Data was loaded
+        if (importMode === 'replace' || state.isSampleData) {
+          state.transactions = [];
+          state.isSampleData = false;
+        }
 
         let parsedTotal = 0;
         let addedTotal = 0;
@@ -1359,22 +1625,24 @@
         for (const file of files) {
           try {
             const buf = await file.arrayBuffer();
-            const wb = XLSX.read(buf, { type: 'array', cellDates: true });
-            const { txns, meta, mergedContinuations } = parseWorkbook(wb);
-            if (!txns.length) {
-              showToast(`No valid transactions found in ${file.name}`, 'error');
-              continue;
+            try {
+              // Use cellDates: false so Excel serial numbers parse deterministically without timezone shifts
+              const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+              const res = finalizeParsedWorkbook(wb, file.name);
+              parsedTotal += res.parsed;
+              addedTotal += res.added;
+              mergedTotal += res.merged;
+            } catch (readErr) {
+              const msg = String(readErr?.message || readErr);
+              if (/password|encrypt|CFB/i.test(msg)) {
+                // Queue this encrypted file to ask the user for its password
+                state.pendingEncryptedQueue.push({ file, buf });
+              } else {
+                showToast(`Failed to read ${file.name}: ${msg}`, 'error');
+              }
             }
-            parsedTotal += txns.length;
-            mergedTotal += mergedContinuations || 0;
-            addedTotal += mergeTransactions(txns, meta || file.name);
           } catch (err) {
-            const msg = String(err?.message || err);
-            if (/password|encrypt|CFB/i.test(msg)) {
-              showToast(`"${file.name}" is password-protected. Open in Excel/WPS, save an unencrypted copy, and upload again.`, 'error');
-            } else {
-              showToast(`Failed to read ${file.name}: ${msg}`, 'error');
-            }
+            showToast(`Could not open ${file.name}: ${err?.message || err}`, 'error');
           }
         }
 
@@ -1382,9 +1650,15 @@
           dom.uploadPanel.classList.add('hidden');
           state.ledgerLimit = LEDGER_PAGE_SIZE;
           syncUIAndRender();
-          const dupes = parsedTotal - addedTotal;
-          showToast(`Imported ${parsedTotal} transactions (${addedTotal} new, ${dupes} duplicates skipped, ${mergedTotal} continuation rows merged)`);
+          const dupes = Math.max(0, parsedTotal - addedTotal);
+          showToast(`Imported ${addedTotal} unique transactions (${dupes} duplicates skipped, ${mergedTotal} continuation rows merged)`);
         }
+
+        // If any uploaded file was password-protected, prompt the user for its password now
+        if (state.pendingEncryptedQueue.length > 0) {
+          openNextEncryptedFilePrompt();
+        }
+
         dom.fileInput.value = '';
       }
 
@@ -2227,6 +2501,75 @@
       // Header Actions
       dom.themeToggleBtn.addEventListener('click', () => applyTheme(isDark() ? 'light' : 'dark'));
 
+      // Excel File Password Modal Events
+      dom.toggleFilePwdBtn.addEventListener('click', () => {
+        const isHidden = dom.filePasswordInput.type === 'password';
+        dom.filePasswordInput.type = isHidden ? 'text' : 'password';
+        dom.fileEyeOpenIcon.classList.toggle('hidden', isHidden);
+        dom.fileEyeClosedIcon.classList.toggle('hidden', !isHidden);
+      });
+
+      const skipCurrentEncryptedFile = () => {
+        state.pendingEncryptedQueue.shift();
+        if (state.pendingEncryptedQueue.length > 0) {
+          openNextEncryptedFilePrompt();
+        } else {
+          closeFilePasswordModal();
+        }
+      };
+      dom.cancelFilePwdBtn.addEventListener('click', skipCurrentEncryptedFile);
+      dom.cancelFilePwdBtn2.addEventListener('click', skipCurrentEncryptedFile);
+
+      dom.filePasswordForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        const current = state.pendingEncryptedQueue[0];
+        if (!current) { closeFilePasswordModal(); return; }
+
+        const pwd = dom.filePasswordInput.value.trim();
+        if (!pwd) {
+          dom.filePasswordError.textContent = 'Please enter the Excel file password.';
+          dom.filePasswordError.classList.remove('hidden');
+          dom.filePasswordInput.focus();
+          return;
+        }
+
+        dom.unlockFilePwdBtn.disabled = true;
+        dom.unlockFilePwdBtn.textContent = 'Unlocking...';
+        dom.filePasswordError.classList.add('hidden');
+
+        try {
+          const wb = await tryDecryptWorkbook(current.file, current.buf, pwd);
+          const res = finalizeParsedWorkbook(wb, current.file.name);
+          state.pendingEncryptedQueue.shift();
+
+          dom.uploadPanel.classList.add('hidden');
+          state.ledgerLimit = LEDGER_PAGE_SIZE;
+          syncUIAndRender();
+          const dupes = Math.max(0, res.parsed - res.added);
+          showToast(`Unlocked & imported ${res.added} unique transactions (${dupes} duplicates skipped)`);
+
+          if (state.pendingEncryptedQueue.length > 0) {
+            openNextEncryptedFilePrompt();
+          } else {
+            closeFilePasswordModal();
+          }
+        } catch (err) {
+          const code = String(err?.message || err);
+          if (code === 'LEGACY_XLS_ENCRYPTED') {
+            dom.filePasswordError.textContent = 'This legacy .xls file uses older RC4 encryption that browsers cannot unlock directly. Open it once in Excel/WPS with your password, Save As .xlsx (or unencrypted), and upload again.';
+          } else if (code === 'WRONG_PASSWORD') {
+            dom.filePasswordError.textContent = 'Incorrect password. Please check your 4-letter name + DOB (DDMM or DDMMYY) and try again.';
+          } else {
+            dom.filePasswordError.textContent = `Could not unlock file: ${code}`;
+          }
+          dom.filePasswordError.classList.remove('hidden');
+          dom.filePasswordInput.focus();
+        } finally {
+          dom.unlockFilePwdBtn.disabled = false;
+          dom.unlockFilePwdBtn.textContent = 'Unlock & Import';
+        }
+      });
+
       const toggleUploadPanel = () => {
         dom.uploadPanel.classList.toggle('hidden');
         if (!dom.uploadPanel.classList.contains('hidden')) {
@@ -2273,6 +2616,7 @@
       dom.confirmClearBtn.addEventListener('click', () => {
         state.transactions = [];
         state.meta = '';
+        state.isSampleData = false;
         localStorage.removeItem(KEYS.TXNS);
         localStorage.removeItem(KEYS.META);
         dom.confirmClearModal.classList.add('hidden');
